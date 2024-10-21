@@ -29,7 +29,7 @@ app.add_middleware(
 async def read_root():
     return {'message':'Welcome to fastapi-authentication'}
 
-@app.get("/login/{regnum}/{password}")
+@app.get("/login/{regnum}/{password}",response_model=LoginCreate)
 async def login_for_access_token(regnum: str, password: str):
     users = session.query(User).filter(User.username == regnum).all()
     if users is None:
@@ -39,18 +39,18 @@ async def login_for_access_token(regnum: str, password: str):
             if user.check_password(password):
                 access_token = create_access_token(data = {"sub":user.username, "userid":user.id})
         
-    return {"access_token": access_token,'username':user.username, "token_type": "bearer"}
+    return LoginCreate(access_token= access_token,username=user.username,token_type="bearer")
 
-@app.get('/university_options')
+@app.get('/university_options',response_model=Options)
 async def University_Options():
     universities = (
         select(University.name)
         .select_from(University)
     )
     unis = session.scalars(universities).all()
-    return unis
+    return Options(name=unis)
 
-@app.get('/college_options/{uni_name}')
+@app.get('/college_options/{uni_name}',response_model=Options)
 async def College_Options(uni_name: str):
     colleges = (
         select(College.name)
@@ -59,9 +59,9 @@ async def College_Options(uni_name: str):
         .filter(University.name == uni_name)
     )
     c = session.scalars(colleges).all()
-    return c
+    return Options(name=c)
 
-@app.get('/course_options/{college_name}')
+@app.get('/course_options/{college_name}',response_model=Options)
 async def Course_Options(college_name: str):
     courses = (
         select(Course.name)
@@ -70,7 +70,7 @@ async def Course_Options(college_name: str):
         .filter(College.name == college_name)
     )
     c=session.scalars(courses).all()
-    return c
+    return Options(name=c)
 
 @app.post('/create_admission')
 async def Create_Admission(form_data: StudentAdmission):
@@ -99,7 +99,7 @@ async def Create_Admission(form_data: StudentAdmission):
     else:
         return {'message':'Error occured'}
     
-@app.get('/student_details/{username}')
+@app.get('/student_details/{username}',response_model=StudentDetails)
 async def Student_Details(username: str):
     student_details_query = (
         select(func.json_build_object(
@@ -123,6 +123,27 @@ async def Student_Details(username: str):
     result = session.execute(student_details_query).first()
     student_details = result[0]
     return student_details
+
+@app.get('/university_details/{name}',response_model=UniversityDetails)
+async def University_Details(name: str):
+    university_query = session.query(University.id.label('Uni_id'),University.code.label('Uni_code'),University.address.label('Uni_address')).filter(University.name == name).one_or_none()
+    college_query = (
+        select(
+            func.json_build_object(
+                'name',College.name,
+                'zip',College.zip,
+                'city',College.city,
+                'state',College.state,
+                'phone',College.phone,
+                'code',College.code
+            )
+        )
+        .filter(College.uni_id == university_query.Uni_id)
+    )
+    college_details = session.scalars(college_query).all()
+    return {'University_code':university_query.Uni_code,
+            'University_address':university_query.Uni_address,
+            'college_details':college_details}
 
 
 # @app.post("/create_University")
